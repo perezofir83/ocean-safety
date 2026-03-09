@@ -212,11 +212,11 @@ const BEACHES = [
 //    - Google Places: places.googleapis.com
 // ============================================================
 const MOCK_OPEN_METEO = {
-  wave_height:      1.8,   // metres
-  wave_period:      11,    // seconds
-  uv_index:         9,
-  wind_speed_kmh:   18,
-  wind_direction_deg: 220,
+  wave_height:        1.8,
+  wave_period:        11,
+  uv_index:           9,
+  water_temperature:  26,
+  current_velocity:   0.0,
 };
 
 // Live data fetched from Open-Meteo (null until first successful fetch)
@@ -226,45 +226,47 @@ function getConditionsData() {
   return liveData ?? MOCK_OPEN_METEO;
 }
 
-// Tide schedule for today (2026-03-08) — mock WorldTides data
-// Each entry: { time: ISO-8601 local, type: 'HIGH'|'LOW', height_m: float }
-const MOCK_TIDES = [
-  { time: '2026-03-08T02:45:00', type: 'LOW',  height_m: 0.25 },
-  { time: '2026-03-08T09:18:00', type: 'HIGH', height_m: 1.45 },
-  { time: '2026-03-08T15:52:00', type: 'LOW',  height_m: 0.20 },
-  { time: '2026-03-08T22:11:00', type: 'HIGH', height_m: 1.52 },
-  { time: '2026-03-09T03:30:00', type: 'LOW',  height_m: 0.28 }, // next-day for edge case
-];
+// ── DYNAMIC TIDE GENERATION ─────────────────────────────────
+// Approximate semi-diurnal tide model for Oaxaca coast (Pacific Mexico).
+// Reference anchor: LOW tide at Zipolite on 2026-03-08T02:45 CST.
+// Accuracy: ±1-2 h — suitable for awareness only, not navigation.
+function generateTides(now) {
+  const SEMI_MS   = (6 * 60 + 12.5) * 60 * 1000; // 6 h 12.5 min
+  const REF_LOW   = new Date('2026-03-08T08:45:00Z').getTime(); // 02:45 CST = 08:45 UTC
 
-const MOCK_PHOTOS = [
-  { url: 'https://placehold.co/300x200/0077B6/white?text=📸+Beach+View',   alt: 'Beach panorama' },
-  { url: 'https://placehold.co/300x200/023E8A/white?text=🌊+Ocean+Waves',  alt: 'Ocean waves' },
-  { url: 'https://placehold.co/300x200/00B4D8/white?text=🏖️+Shoreline',   alt: 'Shoreline at sunset' },
-];
+  // Lunar spring/neap modulation
+  const REF_MOON  = new Date('2026-03-29T10:58:00Z').getTime();
+  const LUNAR_MS  = 29.530589 * 86400000;
+  const lunarAge  = ((now.getTime() - REF_MOON) % LUNAR_MS + LUNAR_MS) % LUNAR_MS;
+  const springF   = Math.abs(Math.cos((lunarAge / LUNAR_MS) * 2 * Math.PI));
+  const highH     = parseFloat((1.0 + springF * 0.45).toFixed(2));
+  const lowH      = parseFloat((0.20 - springF * 0.07).toFixed(2));
 
-const MOCK_REVIEWS = [
-  {
-    author: 'Maria G.',
-    rating: 4,
-    text: 'Beautiful beach but the currents are very strong. Only for experienced swimmers. We saw warning signs about rip currents — take them seriously.',
-    date: '2026-03-01',
-    url: '#',
-  },
-  {
-    author: 'James T.',
-    rating: 5,
-    text: 'Stunning scenery. Locals warned us not to swim past the first waves. We sat on the sand and watched the sunset instead — absolutely perfect.',
-    date: '2026-02-22',
-    url: '#',
-  },
-  {
-    author: 'Sophie R.',
-    rating: 3,
-    text: 'El mar está muy pesado. We asked a local fisherman who said this is normal — the Pacific here is nothing like the Caribbean. Respect the ocean.',
-    date: '2026-02-18',
-    url: '#',
-  },
-];
+  const msSinceRef = now.getTime() - REF_LOW;
+  const startIdx   = Math.floor(msSinceRef / SEMI_MS) - 3;
+  const events     = [];
+
+  for (let i = startIdx; i < startIdx + 9; i++) {
+    const ms     = REF_LOW + i * SEMI_MS;
+    const isHigh = (i % 2 !== 0); // i=0 is LOW (ref), i=1 HIGH, alternating
+    const d      = new Date(ms);
+
+    // Format as local Mexico City ISO string
+    const fmt   = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Mexico_City',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hourCycle: 'h23',
+    });
+    const p      = fmt.formatToParts(d);
+    const get    = t => p.find(x => x.type === t)?.value ?? '00';
+    const local  = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`;
+
+    events.push({ time: local, type: isHigh ? 'HIGH' : 'LOW', height_m: isHigh ? highH : lowH });
+  }
+
+  return events.sort((a, b) => a.time.localeCompare(b.time));
+}
 
 // ============================================================
 // 3. TRANSLATIONS (i18n)
@@ -297,7 +299,15 @@ const TRANSLATIONS = {
     photosLabel:      'RECENT BEACH PHOTOS',
     photosSource:     'Photos via Google Places',
     reviewsLabel:     'RECENT VISITOR REVIEWS',
-    reviewsMore:      'See all reviews on Google →',
+    tideEstimated:    '~est.',
+    waterTempLabel:   'Water Temp',
+    waterTempDesc: {
+      warm:        'Warm — comfortable',
+      comfortable: 'Pleasant',
+      cool:        'Refreshing',
+      cold:        'Cold',
+    },
+    currentSpeedWarn: '⚠️ Current: {v} m/s',
     githubStar:       'Found this helpful? Star us on GitHub — it\'s a free, open project for public safety.',
     selectBeach:      'Select Your Beach',
     useLocation:      'Use My Current Location',
@@ -371,7 +381,15 @@ const TRANSLATIONS = {
     photosLabel:      'FOTOS RECIENTES DE LA PLAYA',
     photosSource:     'Fotos vía Google Places',
     reviewsLabel:     'RESEÑAS RECIENTES DE VISITANTES',
-    reviewsMore:      'Ver todas las reseñas en Google →',
+    tideEstimated:    '~est.',
+    waterTempLabel:   'Temp. Agua',
+    waterTempDesc: {
+      warm:        'Cálida — confortable',
+      comfortable: 'Agradable',
+      cool:        'Refrescante',
+      cold:        'Fría',
+    },
+    currentSpeedWarn: '⚠️ Corriente: {v} m/s',
     githubStar:       '¿Te fue útil? Danos una estrella en GitHub — es un proyecto gratuito y abierto para la seguridad pública.',
     selectBeach:      'Selecciona tu Playa',
     useLocation:      'Usar Mi Ubicación Actual',
@@ -445,7 +463,15 @@ const TRANSLATIONS = {
     photosLabel:      'PHOTOS RÉCENTES DE LA PLAGE',
     photosSource:     'Photos via Google Places',
     reviewsLabel:     'AVIS RÉCENTS DES VISITEURS',
-    reviewsMore:      'Voir tous les avis sur Google →',
+    tideEstimated:    '~est.',
+    waterTempLabel:   'Temp. Eau',
+    waterTempDesc: {
+      warm:        'Chaude — confortable',
+      comfortable: 'Agréable',
+      cool:        'Fraîche',
+      cold:        'Froide',
+    },
+    currentSpeedWarn: '⚠️ Courant : {v} m/s',
     githubStar:       'Vous avez trouvé cela utile ? Donnez-nous une étoile sur GitHub — c\'est un projet gratuit et ouvert pour la sécurité publique.',
     selectBeach:      'Choisir une plage',
     useLocation:      'Utiliser ma position actuelle',
@@ -519,7 +545,15 @@ const TRANSLATIONS = {
     photosLabel:      'RECENTE STRANDFOTO\'S',
     photosSource:     'Foto\'s via Google Places',
     reviewsLabel:     'RECENTE BEZOEKERSERVARINGEN',
-    reviewsMore:      'Zie alle reviews op Google →',
+    tideEstimated:    '~est.',
+    waterTempLabel:   'Watertemp.',
+    waterTempDesc: {
+      warm:        'Warm — comfortabel',
+      comfortable: 'Aangenaam',
+      cool:        'Verfrissend',
+      cold:        'Koud',
+    },
+    currentSpeedWarn: '⚠️ Stroming: {v} m/s',
     githubStar:       'Was dit nuttig? Geef ons een ster op GitHub — het is een gratis, open project voor openbare veiligheid.',
     selectBeach:      'Kies een strand',
     useLocation:      'Gebruik mijn huidige locatie',
@@ -593,7 +627,15 @@ const TRANSLATIONS = {
     photosLabel:      'AKTUELLE STRANDFOTOS',
     photosSource:     'Fotos über Google Places',
     reviewsLabel:     'AKTUELLE BESUCHERBEWERTUNGEN',
-    reviewsMore:      'Alle Bewertungen auf Google ansehen →',
+    tideEstimated:    '~est.',
+    waterTempLabel:   'Wassertemp.',
+    waterTempDesc: {
+      warm:        'Warm — angenehm',
+      comfortable: 'Angenehm',
+      cool:        'Erfrischend',
+      cold:        'Kalt',
+    },
+    currentSpeedWarn: '⚠️ Strömung: {v} m/s',
     githubStar:       'War das hilfreich? Geben Sie uns einen Stern auf GitHub — es ist ein kostenloses, offenes Projekt für die öffentliche Sicherheit.',
     selectBeach:      'Strand auswählen',
     useLocation:      'Meinen aktuellen Standort verwenden',
@@ -1017,14 +1059,25 @@ function updateTideLocalTime() {
 }
 
 function renderTideCard() {
-  const now = new Date();
+  const now      = new Date();
   updateTideLocalTime();
-  const { state: tideState, prevEvent, nextEvent, pct } = getTideState(MOCK_TIDES, now);
+  const tides    = generateTides(now);
+  const { state: tideState, prevEvent, nextEvent, pct } = getTideState(tides, now);
+  const tideCardEl = document.getElementById('tideCard');
 
   const arrowEl = document.getElementById('tideArrow');
   const textEl  = document.getElementById('tideStateText');
   const sineEl  = document.getElementById('tideSineContainer');
   const nextEl  = document.getElementById('tideNextEvent');
+
+  // "Estimated" label
+  let estLabel = tideCardEl.querySelector('.tide-estimated-label');
+  if (!estLabel) {
+    estLabel = document.createElement('div');
+    estLabel.className = 'tide-estimated-label';
+    tideCardEl.querySelector('.tide-card-header').appendChild(estLabel);
+  }
+  estLabel.textContent = t('tideEstimated');
 
   if (tideState === 'UNKNOWN') {
     arrowEl.textContent = '?';
@@ -1049,31 +1102,31 @@ function renderTideCard() {
     textEl.textContent  = t('slack');
   }
 
-  // Sine chart
   sineEl.innerHTML = renderTideSineChart(prevEvent, nextEvent, pct);
 
-  // Next event countdown
   const timeUntil = formatTimeUntil(nextEvent.time, now);
   const eventKey  = nextEvent.type === 'HIGH' ? 'nextHigh' : 'nextLow';
   const eventTime = formatTime(nextEvent.time);
   nextEl.innerHTML = `${t(eventKey)} ${t('in')} <strong>${timeUntil}</strong> · ${eventTime} (${nextEvent.height_m.toFixed(1)}m)`;
 
-  // Today's tide schedule row
-  const tideCardEl = document.getElementById('tideCard');
+  // Tide events row — show today's events
   const oldRow = tideCardEl.querySelector('.tide-events-row');
   if (oldRow) oldRow.remove();
+
+  const todayStr  = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(now);
+  const todayTides = tides.filter(ev => ev.time.startsWith(todayStr)).slice(0, 4);
+  const showTides  = todayTides.length >= 2 ? todayTides : tides.slice(0, 4);
 
   const row = document.createElement('div');
   row.className = 'tide-events-row';
 
-  MOCK_TIDES.slice(0, 4).forEach(ev => {
+  showTides.forEach(ev => {
     const isPrev = ev.time === prevEvent.time;
-    const item = document.createElement('div');
+    const item   = document.createElement('div');
     item.className = 'tide-event-item';
     item.innerHTML = `
       <div class="tide-event-type ${isPrev ? 'is-now' : ''}">
-        ${ev.type === 'HIGH' ? '▲ HIGH' : '▼ LOW'}
-        ${isPrev ? ' ●' : ''}
+        ${ev.type === 'HIGH' ? '▲ HIGH' : '▼ LOW'}${isPrev ? ' ●' : ''}
       </div>
       <div class="tide-event-time">${formatTime(ev.time)}</div>
       <div class="tide-event-height">${ev.height_m.toFixed(2)}m</div>`;
@@ -1084,7 +1137,7 @@ function renderTideCard() {
 }
 
 function renderConditions() {
-  const { wave_height, wave_period, uv_index } = getConditionsData();
+  const { wave_height, wave_period, uv_index, water_temperature, current_velocity } = getConditionsData();
 
   // Waves
   const waveCard = document.getElementById('waveCard');
@@ -1112,10 +1165,33 @@ function renderConditions() {
     banner.classList.add('hidden');
   }
 
-  // Period
+  // Swell period
   const periodCat = getPeriodCategory(wave_period);
   document.getElementById('wavePeriod').textContent = wave_period;
   document.getElementById('periodDesc').textContent = t(`periodTip.${periodCat}`);
+
+  // Water temperature
+  if (water_temperature != null) {
+    const tempC = water_temperature;
+    let tempDesc;
+    if (tempC >= 28)      tempDesc = t('waterTempDesc.warm');
+    else if (tempC >= 24) tempDesc = t('waterTempDesc.comfortable');
+    else if (tempC >= 20) tempDesc = t('waterTempDesc.cool');
+    else                  tempDesc = t('waterTempDesc.cold');
+    document.getElementById('waterTemp').textContent     = tempC;
+    document.getElementById('waterTempDesc').textContent = tempDesc;
+  }
+
+  // Ocean current — show warning if significant (≥ 0.5 m/s ≈ 1 knot)
+  const periodCard = document.getElementById('periodCard');
+  if (current_velocity >= 0.5) {
+    const warn = periodCard.querySelector('.current-speed-warn') || document.createElement('div');
+    warn.className   = 'current-speed-warn';
+    warn.textContent = t('currentSpeedWarn').replace('{v}', current_velocity.toFixed(1));
+    periodCard.appendChild(warn);
+  } else {
+    periodCard.querySelector('.current-speed-warn')?.remove();
+  }
 }
 
 function renderLifeguardBadge() {
@@ -1138,31 +1214,13 @@ function renderCurrentDiagramCard() {
 
 function renderWarnings() {
   const list = document.getElementById('warningsList');
-  list.innerHTML = state.currentBeach.warnings
-    .map(w => `<li class="warning-item">${w}</li>`)
-    .join('');
-}
-
-function renderPhotos() {
-  document.getElementById('photosStrip').innerHTML = MOCK_PHOTOS
-    .map(p => `<div class="photo-item"><img src="${p.url}" alt="${p.alt}" loading="lazy"></div>`)
-    .join('');
-}
-
-function renderReviews() {
-  document.getElementById('reviewsList').innerHTML = MOCK_REVIEWS
-    .map(r => {
-      const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
-      return `<div class="review-item">
-        <div class="review-header">
-          <span class="review-author">${r.author}</span>
-          <span class="review-date">${r.date}</span>
-        </div>
-        <div class="review-stars">${stars}</div>
-        <p class="review-text">${r.text}</p>
-      </div>`;
-    })
-    .join('');
+  list.innerHTML = '';
+  state.currentBeach.warnings.forEach(w => {
+    const li = document.createElement('li');
+    li.className = 'warning-item';
+    li.textContent = w; // textContent — XSS safe
+    list.appendChild(li);
+  });
 }
 
 function renderBeachBar() {
@@ -1188,36 +1246,51 @@ async function fetchLiveConditions() {
   if (!beach) return;
   const { lat, lng } = beach.coords;
 
+  // 8-second timeout via AbortController
+  const ctrl    = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 8000);
+
   try {
     const [uvResp, waveResp] = await Promise.all([
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=uv_index&timezone=America%2FMexico_City&forecast_days=1`),
-      fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=wave_height,wave_period&timezone=America%2FMexico_City&forecast_days=1`),
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=uv_index&timezone=America%2FMexico_City&forecast_days=1`, { signal: ctrl.signal }),
+      fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=wave_height,wave_period,sea_surface_temperature,ocean_current_velocity&timezone=America%2FMexico_City&forecast_days=1`, { signal: ctrl.signal }),
     ]);
+    clearTimeout(timeout);
+
+    if (!uvResp.ok || !waveResp.ok) throw new Error(`HTTP ${uvResp.status}/${waveResp.status}`);
 
     const [uvJson, waveJson] = await Promise.all([uvResp.json(), waveResp.json()]);
 
-    // Get current hour index in Mexico City time
-    const parts = new Intl.DateTimeFormat('en-US', {
+    // Current hour index in Mexico City time
+    const hourParts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/Mexico_City',
       hour: '2-digit',
-      hour12: false,
+      hourCycle: 'h23',
     }).formatToParts(new Date());
-    const hourIdx = parseInt(parts.find(p => p.type === 'hour').value);
+    const rawHour = hourParts.find(p => p.type === 'hour')?.value ?? '0';
+    const hourIdx = Math.min(Math.max(parseInt(rawHour), 0), 23);
 
+    const h = waveJson.hourly;
     liveData = {
-      uv_index:    Math.round(uvJson.hourly.uv_index[hourIdx] ?? 0),
-      wave_height: parseFloat((waveJson.hourly.wave_height[hourIdx] ?? MOCK_OPEN_METEO.wave_height).toFixed(1)),
-      wave_period: Math.round(waveJson.hourly.wave_period[hourIdx] ?? MOCK_OPEN_METEO.wave_period),
+      uv_index:          Math.round(uvJson.hourly.uv_index[hourIdx] ?? 0),
+      wave_height:       parseFloat((h.wave_height[hourIdx]            ?? MOCK_OPEN_METEO.wave_height).toFixed(1)),
+      wave_period:       Math.round(h.wave_period[hourIdx]             ?? MOCK_OPEN_METEO.wave_period),
+      water_temperature: h.sea_surface_temperature
+                           ? Math.round(h.sea_surface_temperature[hourIdx] ?? MOCK_OPEN_METEO.water_temperature)
+                           : MOCK_OPEN_METEO.water_temperature,
+      current_velocity:  h.ocean_current_velocity
+                           ? parseFloat((h.ocean_current_velocity[hourIdx] ?? 0).toFixed(2))
+                           : 0,
     };
 
     renderConditions();
 
-    // Update badge to green / live
     const badge = document.getElementById('dataBadgeText');
     if (badge) badge.textContent = '🟢  Live data · Open-Meteo';
 
   } catch (err) {
-    console.warn('fetchLiveConditions failed:', err);
+    clearTimeout(timeout);
+    console.warn('fetchLiveConditions failed:', err.name === 'AbortError' ? 'Timeout' : err);
     // Keep existing data (mock or last live fetch)
   }
 }
@@ -1229,8 +1302,6 @@ function renderApp() {
   renderLifeguardBadge();
   renderCurrentDiagramCard();
   renderWarnings();
-  renderPhotos();
-  renderReviews();
   updateI18n(); // always last so i18n text overwrites dynamic text
 }
 
