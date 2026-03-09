@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#023E8A">
+  <title>OceanSafe · Oaxaca</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ============ HEADER ============ -->
+  <header class="app-header">
+    <div class="header-brand">
+      <span class="brand-icon">🌊</span>
+      <span class="brand-name">OceanSafe</span>
+      <span class="brand-sub">Oaxaca</span>
+    </div>
+    <div class="lang-picker" id="langPicker">
+      <button class="lang-btn" id="langBtn" aria-label="Select language">
+        <span class="lang-hamburger">&#9776;</span>
+      </button>
+      <div class="lang-dropdown" id="langDropdown">
+        <button class="lang-option" data-lang="en">English</button>
+        <button class="lang-option" data-lang="es">Español</button>
+        <button class="lang-option" data-lang="fr">Français</button>
+        <button class="lang-option" data-lang="nl">Nederlands</button>
+        <button class="lang-option" data-lang="de">Deutsch</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ BEACH BAR ============ -->
+  <div class="beach-bar">
+    <div class="beach-bar-inner">
+      <span class="beach-pin">📍</span>
+      <span class="beach-bar-name" id="beachBarName">Loading...</span>
+    </div>
+    <button class="change-beach-btn" id="changeBeachBtn">
+      <span data-i18n="changeBeach">Change</span>
+    </button>
+  </div>
+
+  <!-- ============ DATA BADGE ============ -->
+  <div class="data-badge">
+    <span class="data-badge-dot"></span>
+    <span id="dataBadgeText">Mock data · Prototype</span>
+  </div>
+
+  <!-- ============ MAIN CONTENT ============ -->
+  <main class="app-main" id="appMain">
+
+    <!-- TIDE CARD -->
+    <section class="card tide-card" id="tideCard">
+      <div class="tide-card-header">
+        <div class="card-label" data-i18n="tideLabel">OCEAN TIDE</div>
+        <div class="tide-local-time" id="tideLocalTime"></div>
+      </div>
+      <div class="tide-state-visual">
+        <div class="tide-arrow" id="tideArrow">↑</div>
+        <div class="tide-state-text" id="tideStateText">SEA IS RISING</div>
+      </div>
+      <div class="tide-sine-container" id="tideSineContainer"></div>
+      <div class="tide-next-event" id="tideNextEvent"></div>
+      <!-- tide-events-row injected by JS -->
+    </section>
+
+    <!-- CONDITIONS ROW -->
+    <div class="conditions-row">
+      <div class="condition-card" id="waveCard">
+        <div class="condition-icon">🌊</div>
+        <div class="condition-value" id="waveHeight">—</div>
+        <div class="condition-unit">m</div>
+        <div class="condition-label" data-i18n="waves">Waves</div>
+        <div class="condition-sublabel" id="waveDesc">—</div>
+      </div>
+      <div class="condition-card" id="uvCard">
+        <div class="condition-icon" id="uvIcon">☀️</div>
+        <div class="condition-value" id="uvIndex">—</div>
+        <div class="condition-unit">UV</div>
+        <div class="condition-label" data-i18n="uvLabel">UV Index</div>
+        <div class="condition-sublabel" id="uvDesc">—</div>
+      </div>
+      <div class="condition-card" id="periodCard">
+        <div class="condition-icon">⚡</div>
+        <div class="condition-value" id="wavePeriod">—</div>
+        <div class="condition-unit">s</div>
+        <div class="condition-label" data-i18n="swellPower">Swell Power</div>
+        <div class="condition-sublabel" id="periodDesc">—</div>
+      </div>
+    </div>
+
+    <!-- UV ACTION BANNER (shown when UV ≥ 8) -->
+    <div class="uv-action-banner hidden" id="uvActionBanner">
+      <span class="uv-banner-icon">🔆</span>
+      <span class="uv-banner-text" id="uvBannerText"></span>
+    </div>
+
+    <!-- LIFEGUARD BADGE -->
+    <div class="lifeguard-badge" id="lifeguardBadge"></div>
+
+    <!-- CURRENT DIAGRAM CARD -->
+    <section class="card current-card">
+      <div class="card-label" data-i18n="currentLabel">TYPICAL CURRENT PATTERN</div>
+      <div class="current-diagram-container" id="currentDiagramContainer"></div>
+      <p class="current-description" id="currentDescription">—</p>
+    </section>
+
+    <!-- WARNINGS CARD -->
+    <section class="card warnings-card" id="warningsCard">
+      <div class="card-label warnings-label" data-i18n="warningsLabel">⚠️ IMPORTANT WARNINGS</div>
+      <ul class="warnings-list" id="warningsList"></ul>
+    </section>
+
+    <!-- DANGER COCKTAIL (permanent infographic) -->
+    <section class="card danger-cocktail-card">
+      <div class="cocktail-header">
+        <span class="cocktail-skull">☠️</span>
+        <div>
+          <div class="card-label danger-label" data-i18n="cocktailLabel">THE DANGER COCKTAIL</div>
+          <p class="cocktail-subtitle" data-i18n="cocktailSubtitle">Why alcohol + sun + ocean kills</p>
+        </div>
+      </div>
+      <div class="cocktail-equation">
+        <div class="cocktail-factor">
+          <div class="factor-icon">🍺</div>
+          <div class="factor-name" data-i18n="alcohol">Alcohol</div>
+          <div class="factor-effect" data-i18n="alcoholEffect">Slows reaction time & impairs judgment</div>
+        </div>
+        <div class="cocktail-plus">+</div>
+        <div class="cocktail-factor">
+          <div class="factor-icon">☀️</div>
+          <div class="factor-name" data-i18n="heat">Heat / Sun</div>
+          <div class="factor-effect" data-i18n="heatEffect">Accelerates dehydration & confusion</div>
+        </div>
+        <div class="cocktail-plus">+</div>
+        <div class="cocktail-factor">
+          <div class="factor-icon">🌊</div>
+          <div class="factor-name" data-i18n="currents">Currents</div>
+          <div class="factor-effect" data-i18n="currentsEffect">Can overpower even strong swimmers</div>
+        </div>
+        <div class="cocktail-equals">=</div>
+        <div class="cocktail-result">
+          <div class="result-icon">☠️</div>
+          <div class="result-text" data-i18n="cocktailResult">LIFE-THREATENING</div>
+        </div>
+      </div>
+      <div class="cocktail-tip" data-i18n="cocktailTip">
+        If you drink, stay on the beach. The ocean is not a pool.
+      </div>
+    </section>
+
+    <!-- RECENT PHOTOS -->
+    <section class="card photos-card">
+      <div class="card-label" data-i18n="photosLabel">RECENT BEACH PHOTOS</div>
+      <div class="photos-strip" id="photosStrip"></div>
+      <p class="photos-source" data-i18n="photosSource">Photos via Google Places</p>
+    </section>
+
+    <!-- RECENT REVIEWS -->
+    <section class="card reviews-card">
+      <div class="card-label" data-i18n="reviewsLabel">RECENT VISITOR REVIEWS</div>
+      <div class="reviews-list" id="reviewsList"></div>
+      <a href="#" class="reviews-more-link" id="reviewsMoreLink" data-i18n="reviewsMore">
+        See all reviews on Google →
+      </a>
+    </section>
+
+    <!-- GITHUB STAR BANNER -->
+    <div class="github-star-banner">
+      <span class="github-star-text" id="githubStarText">Found this helpful? Star us on GitHub — it's a free, open project for public safety.</span>
+      <a class="github-star-link" href="https://github.com/perezofir83/ocean-safety" target="_blank" rel="noopener">★ Star on GitHub</a>
+    </div>
+
+  </main>
+
+  <!-- ============ BEACH SELECTOR MODAL ============ -->
+  <div class="modal-overlay hidden" id="beachModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 data-i18n="selectBeach">Select Your Beach</h2>
+        <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+      </div>
+      <button class="modal-geolocation-btn" id="geoBtn">
+        📍 <span data-i18n="useLocation">Use My Current Location</span>
+      </button>
+      <div class="modal-divider" data-i18n="orSelect">— or select manually —</div>
+      <ul class="beach-list" id="beachList"></ul>
+    </div>
+  </div>
+
+  <!-- ============ SPLASH SCREEN ============ -->
+  <div class="splash-screen" id="splashScreen" aria-modal="true" role="dialog">
+    <div class="splash-content">
+
+      <div class="splash-logo-row">
+        <span class="splash-wave">🌊</span>
+        <div>
+          <div class="splash-title">OceanSafe</div>
+          <div class="splash-region">Oaxaca Coast</div>
+        </div>
+      </div>
+
+      <div class="splash-lang-row" id="splashLangRow">
+        <button class="splash-lang-opt active" data-lang="en">EN</button>
+        <button class="splash-lang-opt" data-lang="es">ES</button>
+        <button class="splash-lang-opt" data-lang="fr">FR</button>
+        <button class="splash-lang-opt" data-lang="nl">NL</button>
+        <button class="splash-lang-opt" data-lang="de">DE</button>
+      </div>
+
+      <p class="splash-desc" id="splashDesc">
+        This app shows real ocean data — waves, tides, and currents — for beaches on the Oaxaca coast so you can understand the conditions before entering the water.
+        It provides information only; you are always responsible for your own safety.
+      </p>
+
+      <div class="splash-warning-box">
+        <span class="splash-warning-icon">⚠️</span>
+        <span class="splash-warning-text" id="splashWarningText">
+          This app does <strong>NOT</strong> tell you the water is "safe".<br>
+          Read every warning. Respect the ocean.
+        </span>
+      </div>
+
+      <button class="splash-geo-btn" id="splashGeoBtn">
+        <span class="splash-btn-icon">📍</span>
+        <span id="splashGeoBtnLabel">Find My Nearest Beach</span>
+      </button>
+
+      <div class="splash-geo-status hidden" id="splashGeoStatus">
+        <span class="splash-spinner"></span>
+        <span id="splashGeoStatusText">Detecting location…</span>
+      </div>
+
+      <button class="splash-skip-btn" id="splashSkipBtn" id="splashSkipBtnLabel">
+        Choose beach manually →
+      </button>
+
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
